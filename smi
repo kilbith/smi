@@ -7,12 +7,11 @@ exit_error() {
 	suffix=$(tput sgr0)
     fi
     printf "$prefix$*$suffix\n" >&2
-    exit 0
+    exit 1
 }
 
-if ! type pv &> /dev/null; then
-    exit_error "Please install 'pv' to use this installer"
-fi
+! type pv >/dev/null 2>&1 && exit_error "Please install 'pv' to use this installer"
+! type whiptail >/dev/null 2>&1 && exit_error "Please install 'whiptail' to use this installer"
 
 ensure_root() {
     (( EUID == 0 )) || exit_error "${1-$0} needs root privileges"
@@ -47,15 +46,18 @@ install_grub() {
 	"mkfs.vfat -F32 /dev/"$DRIVE"1"
 	"mount -t vfat /dev/"$DRIVE"1 /mnt"
 	"grub-install $grub --boot-directory=/mnt/boot --removable"
-	"mkdir -p /mnt/boot/iso"
+	"mkdir -p /mnt/iso"
 	"mkdir -p /mnt/boot/grub/entries"
 	"cp cfg/grub.cfg /mnt/boot/grub/"
+	"sync"
 	"umount /mnt"
+	"eject /dev/$DRIVE"
+	"sleep 1"
 	"eject -t /dev/$DRIVE"
     )
 
     { c=0; for cmd in "${COMMANDS[@]}"; do
-	       eval ${cmd} &> /dev/null
+	       eval ${cmd} &>/dev/null
 	       sleep 0.1
 	       (( c+=100/${#COMMANDS[@]} ))
 	       echo $c
@@ -67,15 +69,15 @@ install_grub() {
 }
 
 install_iso() {
-    if $(ls -A iso) &> /dev/null; then
+    if [ `ls -1 iso/*.iso 2>/dev/null | wc -l` -eq 0 ]; then
 	msgbox "No image found in the iso/ directory."
 	menu_options
     fi
 
     for f in iso/*.iso; do
 	f_lower=${f,,}
-	[[ "$f" =~ " " ]] && mv "$f" `echo $f | tr " " "-"` &> /dev/null
-	[[ "$f" =~ [[:upper:]] ]] && mv "$f" `echo $f_lower` &> /dev/null
+	[[ "$f" =~ " " ]] && mv "$f" `echo $f | tr " " "-"` &>/dev/null
+	[[ "$f" =~ [[:upper:]] ]] && mv "$f" `echo $f_lower` &>/dev/null
     done
 
     list=(B "Back to options" Q "Quit" "" ""); i=0
@@ -89,26 +91,29 @@ install_iso() {
     ISOS=(iso/*.iso)
     ISO=${ISOS[$ENTRIES-1]:4}
     iso_name=${ISO::-4}
-    iso_name=${iso_name%%[-_]*}
-    iso_title=${iso_name^}
+    iso_name_s=${iso_name%%[-_]*}
+    iso_title=${iso_name_s^}
 
     umounting() {
 	umount /mnt
+	eject /dev/$DRIVE
+	sleep 1
 	eject -t /dev/$DRIVE
     }
 
     check_device() {
-	if ! grep -q ${iso_name:1} cfg/profiles/*; then
-	    msgbox "No configuration profile(s) found for $iso. Please create one in the cfg/profiles/ directory."
+	if [ ! -f cfg/profiles/$iso_name_s.sh ] && \
+		[[ $iso_name != *"ubuntu"* ]] && [[ iso_name != *"debian"* ]]; then
+	    msgbox "No configuration profile(s) found for $iso_title. Please create one in the profiles/ directory."
 	    install_iso
 	fi
 	grep -q /dev/$DRIVE /proc/mounts && umount -l /dev/$DRIVE?*
 
-	part_type=$(lsblk -f /dev/"$DRIVE"1 | tail -1 | awk '{print $2}')
+	part_type=$(lsblk -f /dev/"$DRIVE"1 | tail -1 | awk '{print $2}') &>/dev/null
 	if [ "$part_type" = "vfat" ]; then
-	    mount -t vfat /dev/"$DRIVE"1 /mnt &> /dev/null
+	    mount -t vfat /dev/"$DRIVE"1 /mnt &>/dev/null
 	else
-	    msgbox "/dev/"$DRIVE"1 has no FAT file system."
+	    msgbox "/dev/"$DRIVE"1 has no FAT filesystem."
 	    menu_options
 	fi
 	if [ ! -d /mnt/boot/grub ]; then
@@ -127,35 +132,25 @@ install_iso() {
     }
 
     create_profile() {
-	[[ $iso_name == "archlinux"*       ]] && source cfg/profiles/archlinux.sh
-	[[ $iso_name == "centos-[1-99]"*   ]] && source cfg/profiles/centos-stock.sh
-	[[ $iso_name == "centos"*"live"*   ]] && source cfg/profiles/centos-live.sh
-	[[ $iso_name == "debian-[1-99]"*   ]] && source cfg/profiles/debian-stock.sh
-	[[ $iso_name == "debian-live"*     ]] && source cfg/profiles/debian-live.sh
-	[[ $iso_name == "fedora-[1-99]"*   ]] && source cfg/profiles/fedora-stock.sh
-	[[ $iso_name == "fedora-live"*     ]] && source cfg/profiles/fedora-live.sh
-	[[ $iso_name == "gentoo"*          ]] && source cfg/profiles/gentoo.sh
-	[[ $iso_name == "linuxmint"*       ]] && source cfg/profiles/linuxmint.sh
-	[[ $iso_name == "opensuse-[1-99]"* ]] && source cfg/profiles/opensuse-stock.sh
-	[[ $iso_name == "opensuse"*"live"* ]] && source cfg/profiles/opensuse-live.sh
-	[[ $iso_name == "slackware"*       ]] && source cfg/profiles/slackware.sh
-	[[ $iso_name == *"ubuntu"*"i386"   ]] && source cfg/profiles/ubuntu32.sh
-	[[ $iso_name == *"ubuntu"*"amd64"  ]] && source cfg/profiles/ubuntu64.sh
+	if [ -f cfg/profiles/$iso_name_s*.sh ]; then
+	    [[ $iso_name == "$iso_name_s"* ]] && source cfg/profiles/$iso_name_s.sh
+	fi
     }
 
     copy_files() {
-	{ (pv -n iso/$ISO > /mnt/boot/iso/$ISO) 3>&2 2>&1 1>&3
+	{ (pv -n iso/$ISO > /mnt/iso/$ISO) 3>&2 2>&1 1>&3
 	  create_profile
+	  sync
 	  umounting
 	} | whiptail --gauge "Installing $iso_title on /dev/"$DRIVE"1. Please wait..." 8 50 0
 
-	msgbox "$ISO successfully installed on /dev/"$DRIVE"1."
+	msgbox "$iso_title successfully installed on /dev/"$DRIVE"1."
     }
 
     case "${ENTRIES}" in
 	B) menu_options;;
 	Q) exit 0;;
- 	([1-9]|[1-7][0-9]|30) check_device; copy_files; install_iso;;
+	([0-9]|[0-9][0-9]|100) check_device; copy_files; install_iso;;
 	*) install_iso;;
     esac
 }
@@ -173,7 +168,7 @@ menu_options() {
 	B) list_devices;;
 	Q) exit 0;;
 	1) install_grub;;
-        2) install_iso;;
+	2) install_iso;;
 	*) menu_options;;
     esac
 }
@@ -188,11 +183,8 @@ list_devices() {
 	cut -d / -f 4
     ))
 
-    if [ ${#DEVICES[@]} -eq 0 ]; then
-	title="No USB device found"
-    else
-	title="Select USB device"
-    fi
+    title="Select USB device"
+    [ ${#DEVICES[@]} -eq 0 ] && title="No USB device found"
 
     list=()
     for dev in ${DEVICES[@]}; do
@@ -206,10 +198,9 @@ list_devices() {
     case "${ENTRIES}" in
 	R) list_devices;;
 	Q) exit 0;;
-        [sd]*) DRIVE=$ENTRIES; menu_options;;
+	[sd]*) DRIVE=$ENTRIES; menu_options;;
 	*) list_devices;;
     esac
 }
 
 list_devices
-

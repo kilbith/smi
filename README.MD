@@ -1,13 +1,14 @@
-SMI - Simple Multiboot Installer
-================================
+SMI - Simple Multiboot Integrator
+=================================
 
 http://github.com/kilbith/smi
 
 Description
 -----------
 
-SMI is a fast and effortless semi-GUI installer and a set of GRUB configuration
-files to create a neat USB stick with several multi-bootable GNU/Linux distributions.
+SMI is a fast and effortless semi-GUI integrator to create a USB stick with
+several bootable GNU/Linux distributions. SMI manages the installation
+of GRUB and the ISO images of your favorite distributions.
 
 Screenshots
 -----------
@@ -17,26 +18,26 @@ Screenshots
 Installation
 ------------
 
-You will need to install two dependencies :
+You will need three dependencies :
 
-  * GRUB2 (installed on most distributions)
+  * GRUB2 (usually installed on most distributions)
   * pv
+  * whiptail (packaged in the `newt` library, that NetworkManager uses)
 
 Download the archive :
 
     git clone https://github.com/kilbith/smi.git
 
-Alternatively if you don't have `git` installed :
+Move some ISO images in the `smi/iso/` directory.
+Note : you need to install GRUB first on your USB stick before installing the ISO images.
 
-    wget https://github.com/kilbith/smi/archive/master.tar.gz
-    tar -xvf master.tar.gz
-
-Then all you need to do is the following :
+Then, run the installer :
 
     cd smi
-    sudo ./smi.sh
+    sudo ./smi
 
-... and the installation begins in your terminal.
+Once GRUB and some ISO image(s) are installed on your USB drive, reboot your system,
+boot on your USB drive and select a bootable distribution in the GRUB menu.
 
 The supported GNU/Linux distributions currently are :
 
@@ -48,15 +49,14 @@ The supported GNU/Linux distributions currently are :
   * Linux Mint
   * OpenSUSE
   * Slackware
-  * Ubuntu
-  * Kubuntu
-  * Xubuntu
-  * Lubuntu
+  * Ubuntu and all its derivatives
 
 Troubleshooting
 ---------------
 
 Some GRUB configuration files might be incorrect currently or in the future.
-Please consult the [Arch Linux's wiki page](https://wiki.archlinux.org/index.php/Multiboot_USB_drive) to configure the templates,
-or add the support of more distributions.
+Please consult the [Arch Linux's wiki page](https://wiki.archlinux.org/index.php/Multiboot_USB_drive)
+for more details about the GRUB configurations or adding support for more distributions.
+
+Don't hesitate to [open an issue](https://github.com/kilbith/smi/issues/new) for feedbacks and bug reports.
 
