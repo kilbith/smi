@@ -11,6 +11,7 @@ exit_error() {
 }
 
 ! type pv >/dev/null 2>&1 && exit_error "Please install 'pv' to use this installer"
+! type grub-file >/dev/null 2>&1 && exit_error "Please install 'grub' to use this installer"
 ! type whiptail >/dev/null 2>&1 && exit_error "Please install 'whiptail' to use this installer"
 
 ensure_root() {
