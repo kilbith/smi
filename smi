@@ -10,9 +10,9 @@ exit_error() {
     exit 1
 }
 
-! type pv >/dev/null 2>&1 && exit_error "Please install 'pv' to use this installer"
-! type grub-file >/dev/null 2>&1 && exit_error "Please install 'grub' to use this installer"
-! type whiptail >/dev/null 2>&1 && exit_error "Please install 'whiptail' to use this installer"
+! type pv &>/dev/null && exit_error "Please install 'pv' to use this installer"
+! type grub-file &>/dev/null && exit_error "Please install 'grub' to use this installer"
+! type whiptail &>/dev/null && exit_error "Please install 'whiptail' to use this installer"
 
 ensure_root() {
     (( EUID == 0 )) || exit_error "${1-$0} needs root privileges"
